@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
   new_sock_fd = accept(sock_fd, (struct sockaddr*)&cli_addr, &client_len);
 
   if (new_sock_fd < 0) {
-    fprintf(stderr, "Error accepting\n");
+    printf(stderr, "Error accepting\n");
   }
 
   int read_from_client;
