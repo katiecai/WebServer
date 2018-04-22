@@ -6,9 +6,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#define PORT_NO 7000
+#include <signal.h>
+
+int PORT_NO;
+#define BUFFER 1024
+
+void processRequest(char* request);
 
 int main(int argc, char* argv[]) {
+  PORT_NO = atoi(argv[1]);
   int sock_fd, new_sock_fd;
   socklen_t client_len;
   struct sockaddr_in serv_addr, cli_addr;
@@ -38,15 +44,88 @@ int main(int argc, char* argv[]) {
     }
 
     int read_from_client;
-    char buffer[256];
+    char buffer[BUFFER];
 
-    memset(buffer, 0, 256);
+    memset(buffer, 0, BUFFER);
 
-    read_from_client = read(new_sock_fd, buffer, 255);
+    read_from_client = read(new_sock_fd, buffer, BUFFER);
     if (read_from_client < 0) {
       fprintf(stderr, "Error on read\n");
     }
-
-    printf("Result: %s\n", buffer);
+    int cpid = fork();
+    if (cpid == -1)
+      {
+	exit(1);
+      }
+    else if (cpid == 0) //child process
+      {
+	processRequest(buffer);
+	//	kill(cpid, SIGKILL);
+      }
   }
+}
+
+void processRequest(char* request)
+{
+  printf("%s\n", request);
+  char* s = "\r\n";
+  char* token = strtok(request, s);
+  s = " ";
+  char* smaller_token = strtok(token, s);
+  int words = 1;
+  
+  char* GET_request[20];
+  GET_request[0] = smaller_token;
+  while (smaller_token != NULL)
+    {
+      //      printf("%s\n", smaller_token);
+      GET_request[words-1] = smaller_token;
+      smaller_token = strtok(NULL, s);
+      words++;
+    }
+  char file_name[BUFFER];
+  int i = 0;
+  int j = 0;
+  int filename_len = 0;
+
+  for (i = 1; i < words-2; i++)
+    {
+      int j;
+      int word_len = strlen(GET_request[i]);
+      int temp = filename_len;
+
+      printf("%d", word_len);
+      for (j = 0; j < word_len; j++) {
+	if (i == 1 && j == 0)
+	  continue;
+	file_name[filename_len] = GET_request[i][j];
+	filename_len++;
+      }
+
+      if (i != words-3)
+	{
+	  file_name[filename_len] = ' ';
+	  filename_len++;
+	}
+
+      printf("%s\n", GET_request[i]);
+    }
+  file_name[filename_len] = '\0';
+
+  printf("%s\n", file_name);
+  //  int lines = 1;
+  //  char* s = " ";
+  /*  while (token != NULL)
+    {
+      printf("hello");
+      printf("%s\n", token);
+      lines++;
+      token = strtok(NULL, s);
+    }
+  int i;
+  for (i = 0; i < lines; i++)
+    {
+      
+    }
+  */
 }
