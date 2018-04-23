@@ -8,6 +8,7 @@
 #include <string.h>
 #include <signal.h>
 #include <dirent.h>
+#include <errno.h>
 
 int PORT_NO;
 #define BUFFER 1024
@@ -62,8 +63,11 @@ int main(int argc, char* argv[]) {
     else if (cpid == 0) //child process
       {
 	processRequest(buffer);
+	close(new_sock_fd);
 	//	kill(cpid, SIGKILL);
       }
+
+    close(new_sock_fd);
   }
 }
 
@@ -142,9 +146,15 @@ void processRequest(char* request)
       (void)closedir(dp);
     }
 
-  char* header_buffer = "HTTP/1.1 200 OK\r\n";
+  char* header_buffer = "HTTP/1.1 200 OK\r\n\r\n";
 
-  int header = send(new_sock_fd, header_buffer, sizeof(header_buffer), 0);
+  int header = write(new_sock_fd, header_buffer, strlen(header_buffer));
+  if (header < 0)
+    {
+      printf("%d\n", errno);
+      fprintf(stderr, "Error sending response header\n");
+    }
+
   char* file_buffer = NULL;
 
   if (validFile) 
@@ -152,9 +162,14 @@ void processRequest(char* request)
       fseek(fp, 0, SEEK_END);
       int len = ftell(fp);
       
-      fread(file_buffer, sizeof(char), len, fp);
+      file_buffer = malloc(sizeof(char)*len+1);
+      fseek(fp, 0, SEEK_SET);
+      int read_res = fread(file_buffer, sizeof(char), len, fp);
+      file_buffer[len] = '\0';
+
+      printf("%s\n", file_buffer);
       
-      int sent = send(new_sock_fd, file_buffer, len, 0);
+      int sent = write(new_sock_fd, file_buffer, len);
     }
 
   else 
