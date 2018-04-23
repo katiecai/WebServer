@@ -30,21 +30,23 @@ int main(int argc, char* argv[]) {
 
   listen(sock_fd, 1);
 
-  new_sock_fd = accept(sock_fd, (struct sockaddr*)&cli_addr, &client_len);
+  while (1) {
+    new_sock_fd = accept(sock_fd, (struct sockaddr*)&cli_addr, &client_len);
 
-  if (new_sock_fd < 0) {
-    printf(stderr, "Error accepting\n");
+    if (new_sock_fd < 0) {
+      fprintf(stderr, "Error accepting\n");
+    }
+
+    int read_from_client;
+    char buffer[256];
+
+    memset(buffer, 0, 256);
+
+    read_from_client = read(new_sock_fd, buffer, 255);
+    if (read_from_client < 0) {
+      fprintf(stderr, "Error on read\n");
+    }
+
+    printf("Result: %s\n", buffer);
   }
-
-  int read_from_client;
-  char buffer[256];
-
-  memset(buffer, 0, 256);
-
-  read_from_client = read(new_sock_fd, buffer, 255);
-  if (read_from_client < 0) {
-    fprintf(stderr, "Error on read\n");
-  }
-
-  printf("Result: %s\n", buffer);
 }

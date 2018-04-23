@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     if (new_sock_fd < 0) {
       fprintf(stderr, "Error accepting\n");
     }
-
+    
     int read_from_client;
     char buffer[256];
 
