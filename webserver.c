@@ -78,7 +78,6 @@ void processRequest(char* request)
   GET_request[0] = smaller_token;
   while (smaller_token != NULL)
     {
-      //      printf("%s\n", smaller_token);
       GET_request[words-1] = smaller_token;
       smaller_token = strtok(NULL, s);
       words++;
@@ -113,19 +112,4 @@ void processRequest(char* request)
   file_name[filename_len] = '\0';
 
   printf("%s\n", file_name);
-  //  int lines = 1;
-  //  char* s = " ";
-  /*  while (token != NULL)
-    {
-      printf("hello");
-      printf("%s\n", token);
-      lines++;
-      token = strtok(NULL, s);
-    }
-  int i;
-  for (i = 0; i < lines; i++)
-    {
-      
-    }
-  */
 }
