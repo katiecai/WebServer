@@ -12,13 +12,31 @@
 
 int PORT_NO;
 #define BUFFER 1024
+#define HTML 0
+#define HTM 1
+#define TXT 2
+#define JPG 3
+#define JPEG 4
+#define GIF 5
+
+#define html "Content-Type: text/html\r\n\0"
+#define txt "Content-Type: text/plain\r\n\0"
+#define jpeg "Content-Type: image/jpeg\r\n\0"
+#define jpg "Content-Type: image/jpg\r\n\0"
+#define gif "Content-Type: image/gif\r\n\0"
+
 int sock_fd, new_sock_fd;
 
 void processRequest(char* request);
+int getExtension(char* fileName);
+
+void sigchld_handler(int s)
+{
+	while(waitpid(-1, NULL, WNOHANG) > 0);
+}
 
 int main(int argc, char* argv[]) {
   PORT_NO = atoi(argv[1]);
-  int sock_fd, new_sock_fd;
   socklen_t client_len;
   struct sockaddr_in serv_addr, cli_addr;
 
@@ -30,15 +48,14 @@ int main(int argc, char* argv[]) {
   memset((char*)&serv_addr, 0, sizeof(serv_addr));
 
   serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = INADDR_ANY;
+  serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   serv_addr.sin_port = htons(PORT_NO);
 
   if (bind(sock_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
     fprintf(stderr, "Error with binding\n");
   }
 
-  listen(sock_fd, 1);
-
+  listen(sock_fd, 10);
   while (1) {
     new_sock_fd = accept(sock_fd, (struct sockaddr*)&cli_addr, &client_len);
 
@@ -64,15 +81,40 @@ int main(int argc, char* argv[]) {
       {
 	processRequest(buffer);
 	close(new_sock_fd);
-	//	kill(cpid, SIGKILL);
+	exit(0);
       }
-
+    else
+      {
+        close(new_sock_fd);
+	waitpid(-1, NULL, WNOHANG);
+      }
   }
 }
 
+int getExtension(char* fileName)
+{
+  char* s = ".";
+  char* token = strtok(fileName, s);
+  token = strtok(NULL, s);
+  if (strcmp("html", token) == 0)
+    return HTML;
+  else if (strcmp("htm", token) == 0)
+    return HTML;
+  else if (strcmp("txt", token) == 0)
+    return TXT;
+  else if (strcmp("jpg", token) == 0)
+    return JPG;
+  else if (strcmp("jpeg", token) == 0)
+    return JPEG;
+  else if (strcmp("gif", token) == 0)
+    return GIF;
+  else
+    return -1;
+}    
+
 void processRequest(char* request)
 {
-  printf("%s\n", request);
+  printf("%s", request);
   char* s = "\r\n";
   char* token = strtok(request, s);
   s = " ";
@@ -98,7 +140,6 @@ void processRequest(char* request)
       int word_len = strlen(GET_request[i]);
       int temp = filename_len;
 
-      printf("%d", word_len);
       for (j = 0; j < word_len; j++) {
 	if (i == 1 && j == 0)
 	  continue;
@@ -111,26 +152,22 @@ void processRequest(char* request)
 	  file_name[filename_len] = ' ';
 	  filename_len++;
 	}
-
-      printf("%s\n", GET_request[i]);
     }
   file_name[filename_len] = '\0';
-
-  printf("%s\n", file_name);
 
   DIR *dp;
   struct dirent *ep;
   dp = opendir("./");
   int validFile = 0;
   FILE* fp;
-
+  int extension = -1;
   if (dp != NULL)
     {
       while (ep = readdir(dp))
 	{
 	  if (strcasecmp(ep->d_name, file_name) == 0) {
-	    printf("%s\n", ep->d_name);
 	    fp = fopen(ep->d_name, "r");
+	    extension = getExtension(ep->d_name);
 	    if (fp == NULL)
 	      {
 		fprintf(stderr, "Error opening file");
@@ -140,39 +177,51 @@ void processRequest(char* request)
 		validFile = 1;
 	      }
 	  }
-	}
-      
+	}      
       (void)closedir(dp);
     }
 
-  char* header_buffer = "HTTP/1.1 200 OK\r\n\r\n";
-
-  int header = write(new_sock_fd, header_buffer, strlen(header_buffer));
-  if (header < 0)
-    {
-      printf("%d\n", errno);
-      fprintf(stderr, "Error sending response header\n");
-    }
-
+  char* found_header_buffer = "HTTP/1.1 200 OK\r\n\0";
+  char* contentType;
+  if (extension == TXT)
+    contentType = txt;
+  if (extension == HTML || extension == HTM)
+    contentType = html;
+  if (extension == JPEG)
+    contentType = jpeg;
+  if (extension == JPG)
+    contentType = jpg;
+  if (extension == GIF)
+    contentType = gif;
+  char* CRLF = "\r\n\0";
   char* file_buffer = NULL;
-
+  
+  
   if (validFile) 
     {
-      fseek(fp, 0, SEEK_END);
+      if (fseek(fp, 0, SEEK_END) != 0)
+	fprintf(stderr, "error using fseek");
+      
       int len = ftell(fp);
       
       file_buffer = malloc(sizeof(char)*len+1);
-      fseek(fp, 0, SEEK_SET);
+      if (fseek(fp, 0, SEEK_SET) != 0)
+	fprintf(stderr, "error using fseek");
       int read_res = fread(file_buffer, sizeof(char), len, fp);
       file_buffer[len] = '\0';
-
-      printf("%s\n", file_buffer);
-      
+      int header = write(new_sock_fd, found_header_buffer, strlen(found_header_buffer));
+      header = write(new_sock_fd, contentType, strlen(contentType));
+      header = write(new_sock_fd, CRLF, strlen(CRLF));
+      if (header < 0)
+	{
+	  printf("%d\n", errno);
+	  fprintf(stderr, "Error sending response header\n");
+	}
       int sent = write(new_sock_fd, file_buffer, len);
     }
-
   else 
     {
-      fprintf(stderr, "Error opening the directory");
+      //file not found
+      fprintf(stderr, "file not found");
     }
 }
