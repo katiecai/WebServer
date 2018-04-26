@@ -11,7 +11,7 @@
 #include <dirent.h>
 #include <errno.h>
 
-int PORT_NO;
+#define PORT_NO 7000
 #define BUFFER 1024
 #define HTML 0
 #define HTM 1
@@ -32,10 +32,10 @@ int sock_fd, new_sock_fd;
 void processRequest(char* request);
 int getExtension(char* fileName);
 
-int main(int argc, char* argv[]) {
-  if (argc < 2)
-    fprintf(stderr, "Please include a port number");
-  PORT_NO = atoi(argv[1]);
+int main(/*int argc, char* argv[]*/void) {
+  /*  if (argc < 2)
+      fprintf(stderr, "Please include a port number");*/
+  //  PORT_NO = atoi(argv[1]);
   socklen_t client_len;
   struct sockaddr_in serv_addr, cli_addr;
 
