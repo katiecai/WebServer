@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -25,17 +26,15 @@ int PORT_NO;
 #define jpg "Content-Type: image/jpg\r\n\0"
 #define gif "Content-Type: image/gif\r\n\0"
 
+#define NOT_FOUND_404_FILE "404.html"
 int sock_fd, new_sock_fd;
 
 void processRequest(char* request);
 int getExtension(char* fileName);
 
-void sigchld_handler(int s)
-{
-	while(waitpid(-1, NULL, WNOHANG) > 0);
-}
-
 int main(int argc, char* argv[]) {
+  if (argc < 2)
+    fprintf(stderr, "Please include a port number");
   PORT_NO = atoi(argv[1]);
   socklen_t client_len;
   struct sockaddr_in serv_addr, cli_addr;
@@ -54,8 +53,7 @@ int main(int argc, char* argv[]) {
   if (bind(sock_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
     fprintf(stderr, "Error with binding\n");
   }
-
-  listen(sock_fd, 10);
+  listen(sock_fd, 1);
   while (1) {
     new_sock_fd = accept(sock_fd, (struct sockaddr*)&cli_addr, &client_len);
 
@@ -132,28 +130,34 @@ void processRequest(char* request)
   char file_name[BUFFER];
   int i = 0;
   int j = 0;
-  int filename_len = 0;
+  int filename_len = strlen(GET_request[1]);
 
-  for (i = 1; i < words-2; i++)
+  while (i < filename_len)
     {
-      int j;
-      int word_len = strlen(GET_request[i]);
-      int temp = filename_len;
-
-      for (j = 0; j < word_len; j++) {
-	if (i == 1 && j == 0)
-	  continue;
-	file_name[filename_len] = GET_request[i][j];
-	filename_len++;
-      }
-
-      if (i != words-3)
+      if (i == 0)
+	i++;
+      else if (i+2<filename_len)
 	{
-	  file_name[filename_len] = ' ';
-	  filename_len++;
+	  if (GET_request[1][i] == '%' && GET_request[1][i+1] == '2' && GET_request[1][i+2] == '0')
+	    {
+	      file_name[j] = ' ';
+	      i=i+3;
+	    }
+	  else
+	    {
+	      file_name[j] = GET_request[1][i];
+	      i++;
+	    }
+	  j++;
+	}
+      else
+	{
+	  file_name[j] = GET_request[1][i];
+	  i++;
+	  j++;
 	}
     }
-  file_name[filename_len] = '\0';
+  file_name[j] = '\0';
 
   DIR *dp;
   struct dirent *ep;
@@ -163,7 +167,7 @@ void processRequest(char* request)
   int extension = -1;
   if (dp != NULL)
     {
-      while (ep = readdir(dp))
+      while ((ep = readdir(dp)))
 	{
 	  if (strcasecmp(ep->d_name, file_name) == 0) {
 	    fp = fopen(ep->d_name, "r");
@@ -182,46 +186,55 @@ void processRequest(char* request)
     }
 
   char* found_header_buffer = "HTTP/1.1 200 OK\r\n\0";
+  char* not_found_header_buffer = "HTTP/1.1 404 Not Found\r\n\0";
   char* contentType;
   if (extension == TXT)
     contentType = txt;
-  if (extension == HTML || extension == HTM)
+  else if (extension == HTML || extension == HTM)
     contentType = html;
-  if (extension == JPEG)
+  else if (extension == JPEG)
     contentType = jpeg;
-  if (extension == JPG)
+  else if (extension == JPG)
     contentType = jpg;
-  if (extension == GIF)
+  else if (extension == GIF)
     contentType = gif;
+  else
+    contentType = html;
+  
   char* CRLF = "\r\n\0";
   char* file_buffer = NULL;
-  
-  
-  if (validFile) 
+  if (!validFile)
     {
-      if (fseek(fp, 0, SEEK_END) != 0)
-	fprintf(stderr, "error using fseek");
-      
-      int len = ftell(fp);
-      
-      file_buffer = malloc(sizeof(char)*len+1);
-      if (fseek(fp, 0, SEEK_SET) != 0)
-	fprintf(stderr, "error using fseek");
-      int read_res = fread(file_buffer, sizeof(char), len, fp);
-      file_buffer[len] = '\0';
-      int header = write(new_sock_fd, found_header_buffer, strlen(found_header_buffer));
-      header = write(new_sock_fd, contentType, strlen(contentType));
-      header = write(new_sock_fd, CRLF, strlen(CRLF));
-      if (header < 0)
-	{
-	  printf("%d\n", errno);
-	  fprintf(stderr, "Error sending response header\n");
-	}
-      int sent = write(new_sock_fd, file_buffer, len);
+      fp = fopen(NOT_FOUND_404_FILE, "r");
+      if (fp == NULL)
+	fprintf(stderr, "Error opening file");
     }
-  else 
+  
+  if (fseek(fp, 0, SEEK_END) != 0)
+    fprintf(stderr, "error using fseek");
+      
+  int len = ftell(fp);
+      
+  file_buffer = malloc(sizeof(char)*len+1);
+  if (fseek(fp, 0, SEEK_SET) != 0)
+    fprintf(stderr, "error using fseek");
+  fread(file_buffer, sizeof(char), len, fp);
+  file_buffer[len] = '\0';
+
+  if (validFile)
     {
-      //file not found
-      fprintf(stderr, "file not found");
+      if (write(new_sock_fd, found_header_buffer, strlen(found_header_buffer)) < 0)
+	fprintf(stderr, "error writing");
     }
+  else
+    {
+      if (write(new_sock_fd, not_found_header_buffer, strlen(not_found_header_buffer)) < 0)
+	fprintf(stderr, "error writing");
+    }
+  if (write(new_sock_fd, contentType, strlen(contentType)) < 0)
+    fprintf(stderr, "error writing");
+  if (write(new_sock_fd, CRLF, strlen(CRLF)) < 0)
+    fprintf(stderr, "error writing");
+  if (write(new_sock_fd, file_buffer, len) < 0)
+    fprintf(stderr, "error writing");
 }
