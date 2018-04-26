@@ -12,7 +12,7 @@
 #include <errno.h>
 
 #define PORT_NO 7000
-#define BUFFER 1024
+#define BUFFER 2048
 #define HTML 0
 #define HTM 1
 #define TXT 2
@@ -209,7 +209,7 @@ void processRequest(char* request)
       if (fp == NULL)
 	fprintf(stderr, "Error opening file");
     }
-  
+
   if (fseek(fp, 0, SEEK_END) != 0)
     fprintf(stderr, "error using fseek");
       
@@ -237,4 +237,6 @@ void processRequest(char* request)
     fprintf(stderr, "error writing");
   if (write(new_sock_fd, file_buffer, len) < 0)
     fprintf(stderr, "error writing");
+
+  delete(file_buffer);
 }
