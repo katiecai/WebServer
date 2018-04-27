@@ -32,10 +32,7 @@ int sock_fd, new_sock_fd;
 void processRequest(char* request);
 int getExtension(char* fileName);
 
-int main(/*int argc, char* argv[]*/void) {
-  /*  if (argc < 2)
-      fprintf(stderr, "Please include a port number");*/
-  //  PORT_NO = atoi(argv[1]);
+int main(void) {
   socklen_t client_len;
   struct sockaddr_in serv_addr, cli_addr;
 
@@ -94,6 +91,8 @@ int getExtension(char* fileName)
   char* s = ".";
   char* token = strtok(fileName, s);
   token = strtok(NULL, s);
+  if (token == NULL)
+    return TXT;
   if (strcmp("html", token) == 0)
     return HTML;
   else if (strcmp("htm", token) == 0)
@@ -107,7 +106,7 @@ int getExtension(char* fileName)
   else if (strcmp("gif", token) == 0)
     return GIF;
   else
-    return -1;
+    return TXT;
 }    
 
 void processRequest(char* request)
@@ -131,7 +130,7 @@ void processRequest(char* request)
   int i = 0;
   int j = 0;
   int filename_len = strlen(GET_request[1]);
-
+  
   while (i < filename_len)
     {
       if (i == 0)
@@ -238,5 +237,5 @@ void processRequest(char* request)
   if (write(new_sock_fd, file_buffer, len) < 0)
     fprintf(stderr, "error writing");
 
-  delete(file_buffer);
+  free(file_buffer);
 }
